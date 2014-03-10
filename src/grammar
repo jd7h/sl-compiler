@@ -16,7 +16,7 @@ Stmt	= '{' Stmt* '}'
 		| FunCall ';'
 		| 'return' [ Exp ] ';'
 Exp		= id FieldOrArgs | Exp1
-FieldArgs = '(' FunCall ')' | Field
+FieldOrArgs = '(' FunCall ')' | Field
 Field	= ( '.hd' | '.tl' | '.fst' | '.snd' )*
 FunCall	= id '(' [ ActArgs ] ')'
 ActArgs	= Exp (',' Exp)*
