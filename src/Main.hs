@@ -9,14 +9,17 @@ import Tokenizer
 -- type CompFun = Options -> String -> String -> [Token] -> IO (...)
 
 main = do
+	-- Argument parsing
 	(options, [file]) <- getArgs >>= parseArguments
 	-- TODO: Clearly define console interface functions rather than using putStrLn. And snail. Definitely snail.
 	when (snail options) $ putStrLn ("~~ ADD SNAIL HERE ~~")
 	when (verbose options) $ putStrLn ("* Processing " ++ file ++ " *")
 
+	-- Read source file
 	source <- readFile file
 	when (verbose options) $ putStrLn ("* Done reading file *")
 
+	-- Lex source
 	(tokenResult, tokenErrors) <- tokenize options file source (Just [])
 
 	exitSuccess

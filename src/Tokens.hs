@@ -1,13 +1,5 @@
 module Tokens where
 
-data Keyword =
-	  If
-	| Then
-	| Else
-	| While
-	| Return
-	deriving (Show, Eq)
-
 data Token = 
 	  Number Int 
 	| Id String
@@ -35,6 +27,20 @@ data Operator =
 	| Concat
 	deriving (Show,Eq)
 
+data Keyword =
+	  If
+	| Then
+	| Else
+	| While
+	| Return
+	deriving (Show, Eq)
+
+data Type = 
+	  INT
+	| VOID
+	| BOOL	
+	deriving (Show, Eq)
+
 data Separator =
 	  LBr
 	| RBr
@@ -44,12 +50,6 @@ data Separator =
 	| RPar
 	| Comma
 	| Pcomma
-	deriving (Show, Eq)
-
-data Type = 
-	  INT
-	| VOID
-	| BOOL	
 	deriving (Show, Eq)
 
 type Tokenlist = Maybe [Token]

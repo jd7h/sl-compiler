@@ -8,8 +8,8 @@ type AST = Maybe [Tree SL]
 type Parsfun = [Token] -> ([Token],AST)
 
 kleene :: Parsfun -> Parsfun					-- de "*" in de grammatica
-(\/) :: Parsfun -> Parsfun -> Parsfun		-- representeert de "|" in de grammatica
-(>>) :: Parsfun -> Parsfun -> Parsfun		-- zoals andthen
+(\/) :: Parsfun -> Parsfun -> Parsfun			-- representeert de "|" in de grammatica
+(>>) :: Parsfun -> Parsfun -> Parsfun			-- zoals andthen
 opt :: Parsfun -> Parsfun						-- representeerd de [ optionele argumenten ] in de gramm
 
 parseGoal :: Parsfun -- Goal = (VarDecl | FunDecl)+
