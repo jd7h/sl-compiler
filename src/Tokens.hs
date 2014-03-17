@@ -1,5 +1,7 @@
 module Tokens where
 
+type Tokenlist = Maybe [Token]
+
 data Token = 
 	  Number Int 
 	| Id String
@@ -8,7 +10,7 @@ data Token =
 	| Key Keyword
 	| T Type
 	| Sep Separator
-	deriving (Show, Eq)
+	deriving (Show, Eq, Read)
 
 data Operator = 
 	  Plus
@@ -25,7 +27,7 @@ data Operator =
 	| And
 	| Or
 	| Concat
-	deriving (Show,Eq)
+	deriving (Show,Eq, Read)
 
 data Keyword =
 	  If
@@ -33,13 +35,13 @@ data Keyword =
 	| Else
 	| While
 	| Return
-	deriving (Show, Eq)
+	deriving (Show, Eq, Read)
 
 data Type = 
 	  INT
 	| VOID
 	| BOOL	
-	deriving (Show, Eq)
+	deriving (Show, Eq, Read)
 
 data Separator =
 	  LBr
@@ -51,7 +53,3 @@ data Separator =
 	| Comma
 	| Pcomma
 	deriving (Show, Eq)
-
-type Tokenlist = Maybe [Token]
-
-

@@ -7,48 +7,49 @@ import Data.Maybe as Maybe
 import qualified Data.Map as Map hiding (map)
 import qualified Data.Char as C
 
-type Reader = (String,Int) 					--leeskop
-type Lexfun = Reader -> (Reader,Tokenlist)	--stdtype van input naar (resultaat,onbewerkte_input)
+type Reader = (String,Int) 					-- read head
+type LexFun = Reader -> (Reader,Tokenlist)	--stdtype van input naar (resultaat,onbewerkte_input)
 
+reservedSymbols :: (String,Token)
 reservedSymbols =
 	[	--operators
-		("*",Op Times),
-		("/",Op Div),
-		("+",Op Plus),
-		("-",Op Minus),
-		("!",Op Not),
-		(">=",Op GrEq),
-		("<=",Op SmEq),
-		(">",Op Gr),
-		("<",Op Sm),
-		("==",Op Eq),
-		("=",Op As),
-		("&&",Op And),
-		("||",Op Or),
-		(":",Op Concat),
+		("*",	Op Times),
+		("/",	Op Div),
+		("+",	Op Plus),
+		("-",	Op Minus),
+		("!",	Op Not),
+		(">=",	Op GrEq),
+		("<=",	Op SmEq),
+		(">",	Op Gr),
+		("<",	Op Sm),
+		("==",	Op Eq),
+		("=",	Op As),
+		("&&",	Op And),
+		("||",	Op Or),
+		(":",	Op Concat),
 		--separators
-		("[",Sep LBr),
-		("]",Sep RBr),
-		("{",Sep LAcc),
-		("}",Sep RAcc),
-		("(",Sep LPar),
-		(")",Sep RPar),
-		(",",Sep Comma),
-		(";",Sep Pcomma)	
+		("[",	Sep LBr),
+		("]",	Sep RBr),
+		("{",	Sep LAcc),
+		("}",	Sep RAcc),
+		("(",	Sep LPar),
+		(")",	Sep RPar),
+		(",",	Sep Comma),
+		(";",	Sep Pcomma)	
 	]
 
-
+reservedWords :: (String,Token)
 reservedWords = 
-	[	("if",Key If),
-		("then",Key Then),
-		("else",Key Else),
-		("while",Key While),
-		("Int",T INT),
-		("Void",T VOID),
-		("Bool",T BOOL),
-		("False",Boolean False),
-		("True",Boolean True),
-		("return",Key Return)
+	[	("if", 		Key If),
+		("then", 	Key Then),
+		("else", 	Key Else),
+		("while",	Key While),
+		("Int",		T INT),
+		("Void",	T VOID),
+		("Bool",	T BOOL),
+		("False",	Boolean False),
+		("True",	Boolean True),
+		("return",	Key Return)
 	]
 
 --lexes the whole program string
@@ -60,17 +61,17 @@ lexStr (xs,i) = if success then Just (fromJust result ++ (fromMaybe [] (lexStr (
 	success = isJust result
 
 --combinator for lexer functions
-andthen :: Lexfun -> Lexfun -> Lexfun
+andthen :: LexFun -> LexFun -> LexFun
 andthen f g = \x -> 
 	case (f x) of 
 		(_,Nothing) -> g x
 		(r,Just list) -> (r,Just list)
 
 --lexes one token, at the moment chooses FIRST match, must go to LONGEST match
-lexOneToken :: Lexfun
+lexOneToken :: LexFun
 lexOneToken = \(input,index) -> (lexWhitespace `andthen` lexComment `andthen` lexInteger `andthen` lexSymbol `andthen` lexKeyword) (input,index)
 
-lexComment :: Lexfun
+lexComment :: LexFun
 lexComment (input,index)
 	| isPrefixOf "//" input			= lexLineComment (drop 2 input)
 	| isPrefixOf "/*" input			= lexMultiComment (drop 2 input)
@@ -91,7 +92,7 @@ splitAtEndComment acc ('*':'/':xs)  = (acc,xs)
 splitAtEndComment acc (x:xs) 		= splitAtEndComment (acc++[x]) xs
 
 --lexes (and discards) whitespace
-lexWhitespace :: Lexfun
+lexWhitespace :: LexFun
 lexWhitespace (input,index) =
 	case input of 
 		('\r':xs)	-> ((xs,index+1),empty)
@@ -102,7 +103,7 @@ lexWhitespace (input,index) =
 	where empty = Just []
 
 --lexes integers
-lexInteger :: Lexfun
+lexInteger :: LexFun
 lexInteger (input,index)
 	| C.isDigit (head input)	=	let (integer,rest) = splitAtInt [] input
 									in ((rest,index+(length integer)),Just [(Number (read (integer) :: Int))])
@@ -112,7 +113,7 @@ lexInteger (input,index)
 	splitAtInt integer (x:xs) = if C.isDigit x then splitAtInt (integer++[x]) xs else (integer,(x:xs))
 
 --lexes special symbols such as operators
-lexSymbol :: Lexfun
+lexSymbol :: LexFun
 lexSymbol (input,index)
 	| C.isAlphaNum (head input)	= ((input,index),Nothing)
 	| otherwise						=	let 
@@ -129,7 +130,7 @@ lexSymbol (input,index)
 
 
 --lexes keywords and variable names
-lexKeyword :: Lexfun
+lexKeyword :: LexFun
 lexKeyword ([],index) = (([],index),Nothing)
 lexKeyword ((x:xs),index)
 	| C.isAlpha x	=	let (identifier,rest) = (x : (takeWhile C.isAlphaNum xs),dropWhile C.isAlphaNum xs)
