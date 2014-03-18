@@ -1,16 +1,71 @@
 module Tokenizer where
 
-import Tokens
+import qualified Utility as U
 
 import Data.List as List
 import Data.Maybe as Maybe
-import qualified Data.Map as Map hiding (map)
 import qualified Data.Char as C
 
-type Reader = (String,Int) 					-- read head
-type LexFun = Reader -> (Reader,Tokenlist)	--stdtype van input naar (resultaat,onbewerkte_input)
+type Reader = (String,Int)
+type Token = (TokenEnum, U.Span)
+type LexResult = Maybe [Token]
+type LexFun = Reader -> (Reader, LexResult)
 
-reservedSymbols :: (String,Token)
+data TokenEnum =
+	-- Literals
+	  Number Int 
+	| Id String
+	| Boolean Bool
+	-- Other tokens	
+	| Type TypeEnum
+	| Op OperatorEnum
+	| Key KeywordEnum
+	| Sep SeparatorEnum
+	deriving (Show, Eq, Read)
+
+data TypeEnum = 
+	  Int
+	| Void
+	| Bool	
+	deriving (Show, Eq, Read)
+
+data OperatorEnum = 
+	  Plus
+	| Minus
+	| Times
+	| Div
+	| Not
+	| GrEq
+	| SmEq
+	| Gr
+	| Sm
+	| Eq
+	| As
+	| And
+	| Or
+	| Concat
+	deriving (Show,Eq, Read)
+
+data KeywordEnum =
+	  If
+	| Then
+	| Else
+	| While
+	| Return
+	deriving (Show, Eq, Read)
+
+data SeparatorEnum =
+	  LBr
+	| RBr
+	| LAcc
+	| RAcc
+	| LPar
+	| RPar
+	| Comma
+	| Pcomma
+	deriving (Show, Eq, Read)
+
+reservedSymbols :: [(String,TokenEnum)]
 reservedSymbols =
 	[	--operators
 		("*",	Op Times),
@@ -38,103 +93,106 @@ reservedSymbols =
 		(";",	Sep Pcomma)	
 	]
 
-reservedWords :: (String,Token)
+reservedWords :: [(String,TokenEnum)]
 reservedWords = 
 	[	("if", 		Key If),
 		("then", 	Key Then),
 		("else", 	Key Else),
 		("while",	Key While),
-		("Int",		T INT),
-		("Void",	T VOID),
-		("Bool",	T BOOL),
+		("Int",		Type Int),
+		("Void",	Type Void),
+		("Bool",	Type Bool),
 		("False",	Boolean False),
 		("True",	Boolean True),
 		("return",	Key Return)
 	]
 
---lexes the whole program string
-lexStr :: Reader -> Tokenlist
-lexStr ([],i) = Nothing
-lexStr (xs,i) = if success then Just (fromJust result ++ (fromMaybe [] (lexStr (rinput,rindex)))) else Nothing
-	where 
-	((rinput,rindex),result) = lexOneToken (xs,i)
-	success = isJust result
+-- Lexes the whole program string
+lexStr :: Reader -> LexResult
+lexStr ([], _) = Nothing
+lexStr (input, start) = if isJust result then Just (fromJust result ++ (fromMaybe [] (lexStr (rinput,rindex)))) else Nothing
+	where ((rinput, rindex), result) = lexOneToken (input, start)
 
---combinator for lexer functions
+-- Lexes one token
+-- TODO: At the moment chooses FIRST match, must go to LONGEST match
+lexOneToken :: LexFun
+lexOneToken = \(input,start) -> (lexWhitespace `andthen` lexComment `andthen` lexInteger `andthen` lexSymbol `andthen` lexKeyword) (input,start)
+
+-- Combinator for lexer functions
 andthen :: LexFun -> LexFun -> LexFun
 andthen f g = \x -> 
 	case (f x) of 
-		(_,Nothing) -> g x
-		(r,Just list) -> (r,Just list)
-
---lexes one token, at the moment chooses FIRST match, must go to LONGEST match
-lexOneToken :: LexFun
-lexOneToken = \(input,index) -> (lexWhitespace `andthen` lexComment `andthen` lexInteger `andthen` lexSymbol `andthen` lexKeyword) (input,index)
+		(_, Nothing) 	-> g x
+		output		-> output
 
 lexComment :: LexFun
-lexComment (input,index)
-	| isPrefixOf "//" input			= lexLineComment (drop 2 input)
-	| isPrefixOf "/*" input			= lexMultiComment (drop 2 input)
-	| otherwise						= ((input,index),Nothing)
+lexComment (input,start)
+	| isPrefixOf "//" input	= lexLineComment (drop 2 input)
+	| isPrefixOf "/*" input	= lexMultiComment (drop 2 input)
+	| otherwise		= ((input, start), Nothing)
 	where
-		lexLineComment input = 	let	(comment,(x:rest)) = break (\x -> x == '\n' || x == '\r') input
-								in	((rest,index+(length comment)),Just [])
-		lexMultiComment input =  if "*/" `isInfixOf` input 
-								 then 
-									let (comment,rest) = splitAtEndComment [] input
-									in ((rest,index+length comment),Just [])
-								 else (("",index+length input),Nothing)
-
+		lexLineComment input = 	let	(comment, (x:rest)) = break (\x -> x == '\n' || x == '\r') input
+					in	((rest, start+(length comment)), Just [])
+		lexMultiComment input = if "*/" `isInfixOf` input 
+					then 
+						let (comment,rest) = splitAtEndComment [] input
+						in ((rest, start+length comment), Just [])
+					else 	(("", start+length input), Nothing)
 
 splitAtEndComment :: String -> String -> (String,String)
-splitAtEndComment acc []			= (acc,[])
-splitAtEndComment acc ('*':'/':xs)  = (acc,xs)
-splitAtEndComment acc (x:xs) 		= splitAtEndComment (acc++[x]) xs
+splitAtEndComment acc []		= (acc,[])
+splitAtEndComment acc ('*':'/':xs)	= (acc,xs)
+splitAtEndComment acc (x:xs)		= splitAtEndComment (acc ++ [x]) xs
 
---lexes (and discards) whitespace
+-- Lexes (and discards) whitespace
 lexWhitespace :: LexFun
 lexWhitespace (input,index) =
 	case input of 
-		('\r':xs)	-> ((xs,index+1),empty)
-		('\n':xs)	-> ((xs,index+1),empty)
-		('\t':xs)	-> ((xs,index+1),empty)
-		(' ':xs)	-> ((xs,index+1),empty)
-		_			-> ((input,index),Nothing)
+		('\r':xs)	-> ((xs,index+1), empty)
+		('\n':xs)	-> ((xs,index+1), empty)
+		('\t':xs)	-> ((xs,index+1), empty)
+		(' ':xs)	-> ((xs,index+1), empty)
+		_		-> ((input,index), Nothing)
 	where empty = Just []
 
---lexes integers
 lexInteger :: LexFun
-lexInteger (input,index)
-	| C.isDigit (head input)	=	let (integer,rest) = splitAtInt [] input
-									in ((rest,index+(length integer)),Just [(Number (read (integer) :: Int))])
-	| otherwise					= ((input,index),Nothing)
+lexInteger (input, start)
+	| C.isDigit (head input)	= let
+					(integer, rest) = splitAtInt [] input
+					size = length integer
+					end = start + size
+					in ((rest, end), Just [ (Number (read integer :: Int), U.Span start end) ])
+	| otherwise			= ((input, start), Nothing)
 	where
-	splitAtInt integer [] = (integer,"")
-	splitAtInt integer (x:xs) = if C.isDigit x then splitAtInt (integer++[x]) xs else (integer,(x:xs))
+	splitAtInt integer [] = (integer, "")
+	splitAtInt integer (x:xs) = if C.isDigit x then splitAtInt (integer++[x]) xs else (integer, (x:xs))
 
---lexes special symbols such as operators
+-- Lexes special symbols such as operators
 lexSymbol :: LexFun
-lexSymbol (input,index)
-	| C.isAlphaNum (head input)	= ((input,index),Nothing)
-	| otherwise						=	let 
-										(sym,alphanum) = span isWeirdSymbol input
-										match = longestMatch sym
-										rest = if isJust match then drop (length (fst (fromJust match))) input else input
-										nindex = if isJust match then index + length (fst (fromJust match)) else index
-										tok = if isJust match then Just [snd (fromJust match)] else Nothing
-										in ((rest,nindex),tok)
-		where
-			longestMatch []				= Nothing
-			longestMatch symbols@(x:xs) = if isJust (lookup symbols reservedSymbols) then Just (symbols, fromJust (lookup symbols reservedSymbols)) else longestMatch xs
-			isWeirdSymbol s = C.isMark s || C.isSymbol s || C.isPunctuation s
-
-
---lexes keywords and variable names
-lexKeyword :: LexFun
-lexKeyword ([],index) = (([],index),Nothing)
-lexKeyword ((x:xs),index)
-	| C.isAlpha x	=	let (identifier,rest) = (x : (takeWhile C.isAlphaNum xs),dropWhile C.isAlphaNum xs)
-						in ((rest,index+(length identifier)),Just [assignToken (identifier)])
-	| otherwise		=	(((x:xs),index),Nothing)
+lexSymbol (input, start)
+	| C.isAlphaNum (head input)	= ((input, start), Nothing)
+	| otherwise			= let 
+					(symbol, _) = span isWeirdSymbol input
+					match = longestMatch symbol
+					size = if isJust match then length (fst (fromJust match)) else 0
+					rest = drop (size) input
+					end = start + size
+					token = if isJust match then Just [(snd (fromJust match), U.Span start end)] else Nothing
+					in ((rest, end), token)
 	where
-		assignToken str = if isJust (lookup str reservedWords) then fromJust (lookup str reservedWords) else Id str
+		longestMatch []			= Nothing
+		longestMatch symbols@(x:xs) 	= if isJust (lookup symbols reservedSymbols) then Just (symbols, fromJust (lookup symbols reservedSymbols)) else longestMatch xs
+		isWeirdSymbol s = C.isMark s || C.isSymbol s || C.isPunctuation s
+
+-- Lexes keywords and variable names
+lexKeyword :: LexFun
+lexKeyword ([], start) 	= (([], start), Nothing)
+lexKeyword (input, start)
+	| C.isAlpha (head input) =	let 
+					(identifier, rest) = span C.isAlphaNum input
+					end = start + (length identifier)
+					in 
+					((rest, end), Just [(assignToken identifier, U.Span start end )])
+	| otherwise		 =	((input, start), Nothing)
+	where assignToken str 	 = 	if isJust (lookup str reservedWords) 
+					then fromJust (lookup str reservedWords) else Id str

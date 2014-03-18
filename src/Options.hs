@@ -16,7 +16,7 @@ defaultOptions = Options
 options :: [OptDescr (Options -> Options)]
 options =
 	[ Option ['v']	["verbose"]	(NoArg (\ opts -> opts { verbose = True }))	"Additional descriptive text to StdIO"
-	, Option ['s']	["snail"]	(NoArg (\ opts -> opts { verbose = True }))	"SNAIL"
+	, Option ['s']	["snail"]	(NoArg (\ opts -> opts { snail   = True }))	"SNAIL"
 	]
 
 parseArguments :: [String] -> IO (Options, [String])
