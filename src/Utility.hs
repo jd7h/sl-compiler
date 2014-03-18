@@ -2,6 +2,7 @@ module Utility where
 
 type Index = Int
 data Span = Span Index Index
+	deriving(Show,Eq,Read)
 
 -- Finds the end of a string for a certain predicate
 findEnd :: (Char -> Bool) -> String -> Maybe Index

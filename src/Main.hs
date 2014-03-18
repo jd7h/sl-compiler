@@ -21,6 +21,8 @@ main = do
 
 	-- Lex source
 	(tokenResult, tokenErrors) <- tokenize options file source (Just [])
+	
+	putStrLn(tokenResult)
 
 	exitSuccess
 		

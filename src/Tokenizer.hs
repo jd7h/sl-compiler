@@ -16,6 +16,7 @@ data TokenEnum =
 	  Number Int 
 	| Id String
 	| Boolean Bool
+	| Comment String
 	-- Other tokens	
 	| Type TypeEnum
 	| Op OperatorEnum
@@ -109,8 +110,8 @@ reservedWords =
 
 -- Lexes the whole program string
 lexStr :: Reader -> LexResult
-lexStr ([], _) = Nothing
-lexStr (input, start) = if isJust result then Just (fromJust result ++ (fromMaybe [] (lexStr (rinput,rindex)))) else Nothing
+lexStr ([], start) 	= Nothing
+lexStr (input, start) 	= if isJust result then Just (fromJust result ++ (fromMaybe [] (lexStr (rinput,rindex)))) else Nothing
 	where ((rinput, rindex), result) = lexOneToken (input, start)
 
 -- Lexes one token
@@ -127,17 +128,23 @@ andthen f g = \x ->
 
 lexComment :: LexFun
 lexComment (input,start)
-	| isPrefixOf "//" input	= lexLineComment (drop 2 input)
-	| isPrefixOf "/*" input	= lexMultiComment (drop 2 input)
+	| isPrefixOf "//" input	= lexLineComment (drop 2 input, start+2)
+	| isPrefixOf "/*" input	= lexMultiComment (drop 2 input, start+2)
 	| otherwise		= ((input, start), Nothing)
 	where
-		lexLineComment input = 	let	(comment, (x:rest)) = break (\x -> x == '\n' || x == '\r') input
-					in	((rest, start+(length comment)), Just [])
-		lexMultiComment input = if "*/" `isInfixOf` input 
-					then 
-						let (comment,rest) = splitAtEndComment [] input
-						in ((rest, start+length comment), Just [])
-					else 	(("", start+length input), Nothing)
+		lexLineComment (input, start) 	= 	let	(comment, rest) = break (\x -> x == '\n' || x == '\r') input
+								size = length comment
+								end = start + size
+							in	((rest, end), Just [(Comment comment, U.Span start end )])
+							
+		lexMultiComment (input, start) 	= 	if "*/" `isInfixOf` input 
+							then 
+								let	(comment,rest) = splitAtEndComment [] input
+									size = length comment
+									end = start + size
+								in	((rest, start+length comment+2), Just [(Comment comment, U.Span start end)])
+							else 	(("", start+length input), Nothing)
+							-- One could possibly throw a lexer error here, for lack of closing bracket.
 
 splitAtEndComment :: String -> String -> (String,String)
 splitAtEndComment acc []		= (acc,[])
@@ -189,7 +196,7 @@ lexKeyword :: LexFun
 lexKeyword ([], start) 	= (([], start), Nothing)
 lexKeyword (input, start)
 	| C.isAlpha (head input) =	let 
-					(identifier, rest) = span C.isAlphaNum input
+					(identifier, rest) = span (\ c -> C.isAlphaNum c || c == '_') input
 					end = start + (length identifier)
 					in 
 					((rest, end), Just [(assignToken identifier, U.Span start end )])
