@@ -20,6 +20,7 @@ data TokenEnum =
 	-- Other tokens	
 	| Type TypeEnum
 	| Op OperatorEnum
+	| Field FieldEnum
 	| Key KeywordEnum
 	| Sep SeparatorEnum
 	deriving (Show, Eq, Read)
@@ -27,25 +28,39 @@ data TokenEnum =
 data TypeEnum = 
 	  Int
 	| Void
-	| Bool	
+	| Bool
 	deriving (Show, Eq, Read)
 
 data OperatorEnum = 
+	-- Arithmetic
 	  Plus
-	| Minus
-	| Times
+	| Min
+	| Mult
 	| Div
-	| Not
-	| GrEq
-	| SmEq
-	| Gr
-	| Sm
+	| Mod
+	-- Relative
 	| Eq
-	| As
+	| Lt
+	| Gt
+	| Le
+	| Ge
+	| Neq
+	-- Boolean
 	| And
 	| Or
-	| Concat
+	| Not
+	-- List
+	| Cons
+	-- Assignment
+	| As
 	deriving (Show,Eq, Read)
+
+data FieldEnum =
+	  Head
+	| Tail
+	| First
+	| Second
+	deriving (Show, Eq, Read)
 
 data KeywordEnum =
 	  If
@@ -68,22 +83,37 @@ data SeparatorEnum =
 
 reservedSymbols :: [(String,TokenEnum)]
 reservedSymbols =
-	[	--operators
-		("*",	Op Times),
-		("/",	Op Div),
+	[	
+		-- Operators
+		-- Arithmetic
 		("+",	Op Plus),
-		("-",	Op Minus),
-		("!",	Op Not),
-		(">=",	Op GrEq),
-		("<=",	Op SmEq),
-		(">",	Op Gr),
-		("<",	Op Sm),
+		("-",	Op Min),
+		("*",	Op Mult),
+		("/",	Op Div),
+		("%",	Op Mod),
+		-- Relative
 		("==",	Op Eq),
-		("=",	Op As),
+		("<",	Op Lt),
+		(">",	Op Gt),
+		("<=",	Op Le),
+		(">=",	Op Ge),
+		("!=",	Op Neq),
+		-- Boolean
 		("&&",	Op And),
 		("||",	Op Or),
-		(":",	Op Concat),
-		--separators
+		("!",	Op Not),
+		-- List
+		(":",	Op Cons),
+		-- Assignment
+		("=",	Op As),
+	
+		-- Fields
+		(".hd",		Field Head),
+		(".tl",		Field Tail),
+		(".fst",	Field First),
+		(".snd",	Field Second),
+		
+		-- Separators
 		("[",	Sep LBr),
 		("]",	Sep RBr),
 		("{",	Sep LAcc),
@@ -142,7 +172,7 @@ lexComment (input,start)
 								let	(comment,rest) = splitAtEndComment [] input
 									size = length comment
 									end = start + size
-								in	((rest, start+length comment+2), Just [(Comment comment, U.Span start end)])
+								in	((rest, end+2), Just [(Comment comment, U.Span start end)])
 							else 	(("", start+length input), Nothing)
 							-- One could possibly throw a lexer error here, for lack of closing bracket.
 
@@ -178,6 +208,13 @@ lexInteger (input, start)
 lexSymbol :: LexFun
 lexSymbol (input, start)
 	| C.isAlphaNum (head input)	= ((input, start), Nothing)
+	| '.' == (head input)		= let
+					(symbol, rest) = span C.isAlpha (tail input)
+					field = matchField ('.' : symbol)
+					size = if isJust field then length ('.' : symbol) + 1 else 0
+					end = start + size
+					token = if isJust field then Just [(fromJust field, U.Span start end)] else Nothing
+					in ((rest, end), token)
 	| otherwise			= let 
 					(symbol, _) = span isWeirdSymbol input
 					match = longestMatch symbol
@@ -187,11 +224,13 @@ lexSymbol (input, start)
 					token = if isJust match then Just [(snd (fromJust match), U.Span start end)] else Nothing
 					in ((rest, end), token)
 	where
+		isWeirdSymbol s 		= C.isMark s || C.isSymbol s || C.isPunctuation s
 		longestMatch []			= Nothing
 		longestMatch symbols@(x:xs) 	= if isJust (lookup symbols reservedSymbols) then Just (symbols, fromJust (lookup symbols reservedSymbols)) else longestMatch xs
-		isWeirdSymbol s = C.isMark s || C.isSymbol s || C.isPunctuation s
+		matchField str			= lookup str reservedSymbols
 
--- Lexes keywords and variable names
+
+-- Lexes keywords, fields and variable names
 lexKeyword :: LexFun
 lexKeyword ([], start) 	= (([], start), Nothing)
 lexKeyword (input, start)
@@ -202,4 +241,5 @@ lexKeyword (input, start)
 					((rest, end), Just [(assignToken identifier, U.Span start end )])
 	| otherwise		 =	((input, start), Nothing)
 	where assignToken str 	 = 	if isJust (lookup str reservedWords) 
-					then fromJust (lookup str reservedWords) else Id str
+					then fromJust (lookup str reservedWords)
+					else Id str

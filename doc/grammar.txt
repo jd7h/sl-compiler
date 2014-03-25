@@ -5,13 +5,13 @@
 SPL 	= Decl+
 Decl 	= VarDecl | FunDecl
 VarDecl	= Type id '=' Exp ';'
-FunDecl	= RetType id '(' [ FArgs ] ')' '{' VarDecl* Stmt+ '}' --note that in the official grammar, all local variables must be declared beforehand
+FunDecl	= RetType id '(' [ FArgs ] ')' '{' VarDecl* Stmt+ '}'
 RetType	= 'Void' | Type
 Type	= 'Int' | 'Bool' | '(' Type ',' Type ')' | '[' Type ']' | id
 FArgs	= Type id [ ',' FArgs ] -- removed left recursion
 
 Stmt	= '{' Stmt* '}'
-		| 'if' '(' Exp ')' Stmt [ 'else' Stmt ] 
+		| 'if' '(' Exp ')' Stmt ['else' Stmt]
 		| 'while' '(' Exp ')' Stmt
 		| id Field '=' Exp ';'
 		| Exp
@@ -20,31 +20,35 @@ Stmt	= '{' Stmt* '}'
 Exp		= Exp1 | id FieldOrFun
 
 -- Boolean operators
-Exp1	= Exp2 BExp
-BExp	= '&&' Exp1 | '||' Exp1 | e	
+Exp1	= Exp2 | Exp2 Bexp | '!' Exp1
+Bexp	= '&&' Exp1 | '||' Exp1
 
 -- Relation operators
-Exp2	= Exp3 RExp
-RExp	= '<' Exp2 | '<=' Exp2 | '==' Exp2 | '>' Exp2 | '>=' Exp2 | '!=' Exp2 | e
+Exp2	= Exp3 | Exp3 Rexp
+Rexp	= '==' Exp2 | '<' Exp2 | '>' Exp2 | '<=' Exp2 | '>=' Exp2 | '!=' Exp2
 
--- Unary operators
-Exp3	= Exp4 Unexp
-Unexp	= '!' Exp3 | ':' Exp3
+-- List operators
+Exp3	= Exp4 | Exp4 Lexp
+Lexp	= ':' Exp3
 
 -- Summation operators
-Exp4	= Exp5 Pexp
-Pexp	= '+' Exp4 | '-' Exp4 | e
+Exp4	= Exp5 | Exp5 Pexp
+Pexp	= '+' Exp4 | '-' Exp4
 
 -- Multiplication operators
-Exp5	= Exp6 Fexp
-Fexp	= '*' Exp5 | '/' Exp5 | '%' Exp5 | e
+Exp5	= Exp6 | Exp6 Fexp
+Fexp	= '*' Exp5 | '/' Exp5 | '%' Exp5
+
+-- Negation operator
+Exp6	= Exp7 | '-' Exp6
 
 -- Type operators
-Exp6	= '(' Exp TupPar | int | id | 'True' | 'False' | []
+Exp7	= '(' Exp TupPar | Pconst
 TupPar	= ',' Exp ')' | ')'
+Pconst	= int | 'True' | 'False' | []
 
--- Function and variable addressing
-FieldOrFun =  Field | '(' [ActArgs] ')'			-- Function call
+-- Function calls and variable accessing
+FieldOrFun =  Field | '(' [ActArgs] ')'		-- Function call
 Field	= ( '.hd' | '.tl' | '.fst' | '.snd' )*
 ActArgs	= Exp (',' Exp)*
 
