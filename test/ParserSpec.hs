@@ -53,15 +53,14 @@ spec = do
 			doParseExpression "4+-3" `shouldBe` 
 				BinOp
 				(ConstInt (Integer 4 (Span 0 1)) (Span 0 0)) 
-				(Min (Span 1 2))
+				(Plus (Span 1 2))
 				(UnOp 
 					(Neg (Span 2 3)) 
 					(ConstInt (Integer 3 (Span 3 4)) 
 					(Span 0 0)
 				) 
 				(Span 0 0))
-				(Span 0 0)
-			
+				(Span 0 0)			
 
 		it "parses sum (-) expressions" $
 			doParseExpression "4-3" `shouldBe`
@@ -114,3 +113,7 @@ spec = do
 				 (Min (Span 12 13)) 
 				 (UnOp (Neg (Span 14 15)) (ConstInt (Integer 1 (Span 15 16)) (Span 0 0)) (Span 0 0)) 
 				 (Span 0 0)
+				 
+		it "parses expressions with fields" $
+			doParseExpression "camel_case123.fst.tl.snd.hd = (UPPERCASE,lowercase).fst" `shouldBe`
+				Var (Identifier "camel_case123" Nothing (Span 0 13)) [] (Span 0 0)

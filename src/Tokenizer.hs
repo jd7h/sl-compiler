@@ -6,6 +6,8 @@ import Data.List as List
 import Data.Maybe as Maybe
 import qualified Data.Char as C
 
+import Debug.Trace
+
 type Reader = (String,Int)
 type Token = (TokenEnum, U.Span)
 type LexResult = Maybe [Token]
@@ -193,6 +195,7 @@ lexWhitespace (input,index) =
 	where empty = Just []
 
 lexInteger :: LexFun
+lexInteger ([], start)			= (([],start), Nothing)
 lexInteger (input, start)
 	| C.isDigit (head input)	= let
 					(integer, rest) = splitAtInt [] input
@@ -204,35 +207,44 @@ lexInteger (input, start)
 	splitAtInt integer [] = (integer, "")
 	splitAtInt integer (x:xs) = if C.isDigit x then splitAtInt (integer++[x]) xs else (integer, (x:xs))
 
--- Lexes special symbols such as operators
+-- Lexes symbols, such as operators, separators and fields
 lexSymbol :: LexFun
+lexSymbol ([], start)			= (([],start), Nothing)
 lexSymbol (input, start)
-	| C.isAlphaNum (head input)	= ((input, start), Nothing)
-	| '.' == (head input)		= let
-					(symbol, rest) = span C.isAlpha (tail input)
-					field = matchField ('.' : symbol)
-					size = if isJust field then length ('.' : symbol) + 1 else 0
-					end = start + size
-					token = if isJust field then Just [(fromJust field, U.Span start end)] else Nothing
-					in ((rest, end), token)
-	| otherwise			= let 
-					(symbol, _) = span isWeirdSymbol input
-					match = longestMatch symbol
-					size = if isJust match then length (fst (fromJust match)) else 0
-					rest = drop (size) input
-					end = start + size
-					token = if isJust match then Just [(snd (fromJust match), U.Span start end)] else Nothing
-					in ((rest, end), token)
-	where
-		isWeirdSymbol s 		= C.isMark s || C.isSymbol s || C.isPunctuation s
-		longestMatch []			= Nothing
-		longestMatch symbols@(x:xs) 	= if isJust (lookup symbols reservedSymbols) then Just (symbols, fromJust (lookup symbols reservedSymbols)) else longestMatch xs
-		matchField str			= lookup str reservedSymbols
+	| C.isAlphaNum (head input)	= ((input,start), Nothing)
+	| '.' == (head input)		= let (symbol, rest) = span C.isAlpha (tail input)
+					  in case lookup ('.':symbol) reservedSymbols of
+						Nothing			-> ((input,start), Nothing)
+						Just token		->
+							let
+								size = (length symbol) + 1
+								end = start + size
+								rest = drop size input
+							in	((rest, end), Just [(token, U.Span start end)])
+								
+	| otherwise			= case longestMatch [head input] (tail input) Nothing of
+						Nothing 		-> ((input,start), Nothing)
+						Just (symbol, token)	->
+							let	size = length symbol
+								end = start + size
+								rest = drop size input
+							in	((rest, end), Just [(token, U.Span start end)])
+
+longestMatch :: String -> String -> Maybe (String, TokenEnum) -> Maybe (String, TokenEnum)
+longestMatch [] _ _		= Nothing
+longestMatch [x] [] acc 	= 
+	case lookup [x] reservedSymbols of
+		Nothing		-> acc
+		Just token	-> Just ([x], token)
+longestMatch xs rest acc = 
+	case lookup xs reservedSymbols of
+		Nothing		-> acc
+		Just token	-> longestMatch (xs ++ [head rest]) (tail rest) (Just (xs, token))
 
 
 -- Lexes keywords, fields and variable names
 lexKeyword :: LexFun
-lexKeyword ([], start) 	= (([], start), Nothing)
+lexKeyword ([], start) 		 = (([], start), Nothing)
 lexKeyword (input, start)
 	| C.isAlpha (head input) =	let 
 					(identifier, rest) = span (\ c -> C.isAlphaNum c || c == '_') input
