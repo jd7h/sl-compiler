@@ -17,10 +17,12 @@ data Type a		= Void a
 			| TypeId (Identifier a) a
 			deriving (Show, Eq, Read)
 
-data Statement a	= Expression (Expression a) a				-- To support function calls
+data Statement a	= Expression (Expression a) a		-- To support function calls
+			| Block [Statement a] a
 			| Assignment (Identifier a) [Field a] (Expression a) a
-			| If (Expression a) [Statement a] [Statement a] a
-			| While (Expression a) [Statement a] a
+			| If (Expression a) (Statement a) a
+			| IfElse (Expression a) (Statement a) (Statement a) a
+			| While (Expression a) (Statement a) a
 			| Return (Maybe (Expression a)) a
 			deriving (Show, Eq, Read)
 

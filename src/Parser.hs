@@ -41,10 +41,55 @@ parseFunDecl = undefined
 parseType :: ParseMonad (SourceTree AST.Type)
 parseType = undefined
 
--- TODO: Implement
-parseStatement :: ParseMonad (SourceTree AST.Statement)
-parseStatement = undefined
 
+parseStatement :: ParseMonad (SourceTree AST.Statement)
+parseStatement =
+	do 	-- Block
+		equalsTokenEnum (T.Sep T.LAcc)
+		stmnts <- kleene $ parseStatement
+		equalsTokenEnum (T.Sep T.LAcc)
+		return $ AST.Block stmnts (U.Span 0 0)
+	\/ do 	-- IfElse
+		equalsTokenEnum (T.Key T.If)
+		equalsTokenEnum (T.Sep T.LPar)
+		e <- parseExpression
+		equalsTokenEnum (T.Sep T.RPar)
+		s <- parseStatement
+		equalsTokenEnum (T.Key T.Else)
+		s2 <- parseStatement
+		return $ AST.IfElse e s s2 (U.Span 0 0)
+	\/ do 	-- If
+		equalsTokenEnum (T.Key T.If)
+		equalsTokenEnum (T.Sep T.LPar)
+		e <- parseExpression
+		equalsTokenEnum (T.Sep T.RPar)
+		s <- parseStatement
+		return $ AST.If e s (U.Span 0 0)
+	\/ do 	-- While
+		equalsTokenEnum (T.Key T.While)
+		equalsTokenEnum (T.Sep T.LPar)		
+		e <- parseExpression
+		equalsTokenEnum (T.Sep T.RPar)
+		s <- parseStatement
+		return $ AST.While e s (U.Span 0 0)
+	\/ do 	-- Assignment
+		ident <- parseIdentifier
+		fields <- (kleene $ parseField)
+		equalsTokenEnum (T.Op T.As)
+		e <- parseExpression
+		equalsTokenEnum (T.Sep T.Pcomma)
+		return $ AST.Assignment ident fields e (U.Span 0 0)
+	\/ do 	-- Return
+		equalsTokenEnum (T.Key T.Return)
+		e <- opt $ parseExpression
+		equalsTokenEnum (T.Sep T.Pcomma)
+		return $ AST.Return e (U.Span 0 0)
+	\/ do 	-- Expression
+		e <- parseExpression
+		equalsTokenEnum (T.Sep T.Pcomma)
+		return $ AST.Expression e (U.Span 0 0)
+		
+		
 -- *** Expressions *** --
 
 -- Function calls and variable accessing

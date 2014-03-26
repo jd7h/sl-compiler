@@ -14,7 +14,7 @@ Stmt	= '{' Stmt* '}'
 		| 'if' '(' Exp ')' Stmt ['else' Stmt]
 		| 'while' '(' Exp ')' Stmt
 		| id Field '=' Exp ';'
-		| Exp
+		| Exp ';'
 		| 'return' [ Exp ] ';'
 		
 Exp		= Exp1 | id FieldOrFun
