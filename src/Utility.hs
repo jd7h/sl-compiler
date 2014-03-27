@@ -19,3 +19,8 @@ subStr [] _ _ 		= []
 subStr _ _ 0		= []
 subStr (x:xs) 0 n	= (x : subStr xs 0 (n-1))
 subStr (x:xs) i n	= subStr xs (i-1) n
+
+isPrefixOf :: String -> String -> Bool
+isPrefixOf (x:xs) (y:ys)	= x == y && (isPrefixOf xs ys)
+isPrefixOf [] _			= True
+isPrefixOf _ _			= False

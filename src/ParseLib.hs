@@ -3,6 +3,7 @@ module ParseLib where
 import qualified Tokenizer as T
 import qualified Utility as U
 
+import Debug.Trace
 
 -- *** Types *** --
 
@@ -38,15 +39,16 @@ instance Monad ParseMonad where
 
 opt :: ParseMonad a -> ParseMonad (Maybe a)
 opt monad = 
-		return Nothing
-	\/ do
+	do
 		x <- monad
 		return (Just x)
+	\/	
+		return Nothing
 
 -- Operator for repetition
 kleene :: ParseMonad a -> ParseMonad [a]
 kleene monad = do
-	return [] \/ kleenePlus monad
+	kleenePlus monad \/ return []
 
 kleenePlus :: ParseMonad a -> ParseMonad [a]
 kleenePlus monad = do
@@ -60,7 +62,7 @@ kleenePlus monad = do
 -- Operator for repitition with delimiters
 kleeneDelimited :: ParseMonad a -> ParseMonad b -> ParseMonad [a]
 kleeneDelimited mA mB = do
-	return [] \/ kleenePlusDelimited mA mB
+	kleenePlusDelimited mA mB \/ return []
 
 kleenePlusDelimited :: ParseMonad a -> ParseMonad b -> ParseMonad [a]
 kleenePlusDelimited mA mB = do
@@ -75,32 +77,37 @@ kleenePlusDelimited mA mB = do
 
 -- *** Parser Functions *** --
 
--- TODO: This function is not finished
-applyParser :: ParseMonad a -> [T.Token] -> Either Error (a, ParseInput)
-applyParser m list = case unpack m (U.Span 0 0, list) of
+applyParser :: [T.Token] -> ParseMonad a -> Either Error a
+applyParser tokens monad = case unpack monad (U.Span 0 0, tokens) of
 	(NoMatch, Nothing)	-> error "PARSE ERROR: No syntax match and no errors!"
 	(NoMatch, Just e)	-> Left e
-	(Match (output,rest),e)	-> Right (output,rest)
+	(Match (output, _),e)	-> Right output
 	
 equalsTokenEnum :: T.TokenEnum -> ParseMonad (T.TokenEnum)
-equalsTokenEnum token = parseTokenEnum ((==) token)
+equalsTokenEnum token = parseTokenEnum ((==) token) token
 
 -- Applies a predicate from token enums to truth values to e.g. eat simple tokens
-parseTokenEnum :: (T.TokenEnum -> Bool) -> ParseMonad (T.TokenEnum)
-parseTokenEnum f = PM $ \ input -> case input of
+parseTokenEnum :: (T.TokenEnum -> Bool) -> T.TokenEnum -> ParseMonad (T.TokenEnum)
+parseTokenEnum f expToken = PM $ \ input -> case input of
 	(_, []) 				-> (NoMatch, Just "PARSE ERROR: End of stream")
 	(parseSpan, (tokenEnum, tokenSpan):ts)	-> case (f tokenEnum) of
-		True	-> (Match (tokenEnum, (newSpan, ts)), Nothing)
-		False 	-> (NoMatch, Just "PARSE ERROR: Unexpected token")		-- TODO: Add token information to error.
+		True	-> --trace("equalsTokenEnum: succesful match -" ++ (show (tokenEnum, tokenSpan)))
+			(Match (tokenEnum, (newSpan, ts)), Nothing)
+		False 	-> --trace ("equalsTokenEnum: failed match - " ++ (show (tokenEnum, tokenSpan)) ++ ". Expected: " ++ (show expToken)) 
+			(	NoMatch, Just $ 
+				"PARSE ERROR -\t Unexpected token: " ++ show (tokenEnum, tokenSpan) ++
+				"\n\t\t Expected: " ++ show expToken
+			)
+						
 	where newSpan = U.Span 0 0	-- TODO: Correctly calculate new span
 	
 -- Applies a mapping from lexer tokens to a result type, such as a piece of AST
 parseToken :: (T.Token -> Maybe a) -> ParseMonad (a)
 parseToken f = PM $ \ input -> case input of
 	(_, [])			-> (NoMatch, Just "PARSE ERROR: End of stream")
-	(parseSpan, token:xs)	-> case (f token) of
-		Nothing		-> (NoMatch, Just "PARSE ERROR: Unexpected token")	-- TODO: Add information on token to error.
+	(parseSpan, token:xs)	-> case (f $ token) of
 		Just result	-> (Match (result, (newSpan, xs)), Nothing)
+		Nothing		-> (NoMatch, Just $ "PARSE ERROR - Unexpected token: " ++ show token)
 	where newSpan = U.Span 0 0	-- TODO: Correctly calculate new span
 	
 -- Applies a given operator mapping from lexer to AST

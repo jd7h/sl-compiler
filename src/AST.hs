@@ -12,12 +12,12 @@ data Declaration a	= VarDecl (Type a) (Identifier a) (Expression a) a
 data Type a		= Void a
 			| Int a
 			| Bool a
-			| List (Type a)
+			| List (Type a) a
 			| Tuple (Type a) (Type a) a
 			| TypeId (Identifier a) a
 			deriving (Show, Eq, Read)
 
-data Statement a	= Expression (Expression a) a		-- To support function calls
+data Statement a	= Expression (Expression a) a				-- To support function calls
 			| Block [Statement a] a
 			| Assignment (Identifier a) [Field a] (Expression a) a
 			| If (Expression a) (Statement a) a
@@ -27,7 +27,7 @@ data Statement a	= Expression (Expression a) a		-- To support function calls
 			deriving (Show, Eq, Read)
 
 data Expression	a 	= Var (Identifier a) [Field a] a
-			| BinOp (Expression a) (Op2 a) (Expression a) a		-- Enables tree simplification
+			| BinOp (Expression a) (Op2 a) (Expression a) a		-- Allows tree simplification
 			| UnOp (Op1 a) (Expression a) a
 			| ConstInt (AST.Integer a) a
 			| ConstBool (Boolean a) a

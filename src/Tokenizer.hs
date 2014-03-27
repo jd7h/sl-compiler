@@ -88,56 +88,54 @@ reservedSymbols =
 	[	
 		-- Operators
 		-- Arithmetic
-		("+",	Op Plus),
-		("-",	Op Min),
-		("*",	Op Mult),
-		("/",	Op Div),
-		("%",	Op Mod),
+		("+", Op Plus),
+		("-", Op Min),
+		("*", Op Mult),
+		("/", Op Div),
+		("%", Op Mod),
 		-- Relative
-		("==",	Op Eq),
-		("<",	Op Lt),
-		(">",	Op Gt),
-		("<=",	Op Le),
-		(">=",	Op Ge),
-		("!=",	Op Neq),
+		("==", Op Eq),
+		("<", Op Lt),
+		(">", Op Gt),
+		("<=", Op Le),
+		(">=", Op Ge),
+		("!=", Op Neq),
 		-- Boolean
-		("&&",	Op And),
-		("||",	Op Or),
-		("!",	Op Not),
+		("&&", Op And),
+		("||", Op Or),
+		("!", Op Not),
 		-- List
-		(":",	Op Cons),
+		(":", Op Cons),
 		-- Assignment
-		("=",	Op As),
+		("=", Op As),
 	
 		-- Fields
-		(".hd",		Field Head),
-		(".tl",		Field Tail),
-		(".fst",	Field First),
-		(".snd",	Field Second),
+		(".hd", Field Head),
+		(".tl",	Field Tail),
+		(".fst", Field First),
+		(".snd", Field Second),
 		
 		-- Separators
-		("[",	Sep LBr),
-		("]",	Sep RBr),
-		("{",	Sep LAcc),
-		("}",	Sep RAcc),
-		("(",	Sep LPar),
-		(")",	Sep RPar),
-		(",",	Sep Comma),
-		(";",	Sep Pcomma)	
-	]
-
-reservedWords :: [(String,TokenEnum)]
-reservedWords = 
-	[	("if", 		Key If),
-		("then", 	Key Then),
-		("else", 	Key Else),
-		("while",	Key While),
-		("Int",		Type Int),
-		("Void",	Type Void),
-		("Bool",	Type Bool),
-		("False",	Boolean False),
-		("True",	Boolean True),
-		("return",	Key Return)
+		("[", Sep LBr),
+		("]", Sep RBr),
+		("{", Sep LAcc),
+		("}", Sep RAcc),
+		("(", Sep LPar),
+		(")", Sep RPar),
+		(",", Sep Comma),
+		(";", Sep Pcomma),
+		
+		-- Keywords
+		("if", Key If),
+		("then", Key Then),
+		("else", Key Else),
+		("while", Key While),
+		("Int",	Type Int),
+		("Void", Type Void),
+		("Bool", Type Bool),
+		("False", Boolean False),
+		("True", Boolean True),
+		("return", Key Return)
 	]
 
 -- Lexes the whole program string
@@ -145,11 +143,12 @@ lexStr :: Reader -> LexResult
 lexStr ([], start) 	= Nothing
 lexStr (input, start) 	= if isJust result then Just (fromJust result ++ (fromMaybe [] (lexStr (rinput,rindex)))) else Nothing
 	where ((rinput, rindex), result) = lexOneToken (input, start)
+-- TODO: Output error if any source is left
 
 -- Lexes one token
 -- TODO: At the moment chooses FIRST match, must go to LONGEST match
 lexOneToken :: LexFun
-lexOneToken = \(input,start) -> (lexWhitespace `andthen` lexComment `andthen` lexInteger `andthen` lexSymbol `andthen` lexKeyword) (input,start)
+lexOneToken = \(input,start) -> (lexWhitespace `andthen` lexComment `andthen` lexInteger `andthen` lexSymbol `andthen` lexIdentifier) (input,start)
 
 -- Combinator for lexer functions
 andthen :: LexFun -> LexFun -> LexFun
@@ -207,51 +206,27 @@ lexInteger (input, start)
 	splitAtInt integer [] = (integer, "")
 	splitAtInt integer (x:xs) = if C.isDigit x then splitAtInt (integer++[x]) xs else (integer, (x:xs))
 
--- Lexes symbols, such as operators, separators and fields
+-- Lexes literals in the reservedSymbol list
 lexSymbol :: LexFun
-lexSymbol ([], start)			= (([],start), Nothing)
-lexSymbol (input, start)
-	| C.isAlphaNum (head input)	= ((input,start), Nothing)
-	| '.' == (head input)		= let (symbol, rest) = span C.isAlpha (tail input)
-					  in case lookup ('.':symbol) reservedSymbols of
-						Nothing			-> ((input,start), Nothing)
-						Just token		->
-							let
-								size = (length symbol) + 1
-								end = start + size
-								rest = drop size input
-							in	((rest, end), Just [(token, U.Span start end)])
-								
-	| otherwise			= case longestMatch [head input] (tail input) Nothing of
-						Nothing 		-> ((input,start), Nothing)
-						Just (symbol, token)	->
-							let	size = length symbol
-								end = start + size
-								rest = drop size input
-							in	((rest, end), Just [(token, U.Span start end)])
+lexSymbol = foldr1 andthen symbolFuncs
 
-longestMatch :: String -> String -> Maybe (String, TokenEnum) -> Maybe (String, TokenEnum)
-longestMatch [] _ _		= Nothing
-longestMatch [x] [] acc 	= 
-	case lookup [x] reservedSymbols of
-		Nothing		-> acc
-		Just token	-> Just ([x], token)
-longestMatch xs rest acc = 
-	case lookup xs reservedSymbols of
-		Nothing		-> acc
-		Just token	-> longestMatch (xs ++ [head rest]) (tail rest) (Just (xs, token))
-
+-- Builds a list of lexer functions, one for each entry in the symbol list
+symbolFuncs = map toSymbol sortedSymbolList
+sortedSymbolList = (reverse (sortBy (\(x, _) (y, _) -> compare (length x) (length y)) reservedSymbols))
+toSymbol (lstr, ltok) (str, start)
+	| not (U.isPrefixOf lstr str) = ((str,start), Nothing)
+	| otherwise = let
+		size = length lstr
+		end = start + size
+		in ((drop size str, end), Just [(ltok, U.Span start end)])
 
 -- Lexes keywords, fields and variable names
-lexKeyword :: LexFun
-lexKeyword ([], start) 		 = (([], start), Nothing)
-lexKeyword (input, start)
+lexIdentifier :: LexFun
+lexIdentifier ([], start) 		 = (([], start), Nothing)
+lexIdentifier (input, start)
 	| C.isAlpha (head input) =	let 
 					(identifier, rest) = span (\ c -> C.isAlphaNum c || c == '_') input
 					end = start + (length identifier)
-					in 
-					((rest, end), Just [(assignToken identifier, U.Span start end )])
-	| otherwise		 =	((input, start), Nothing)
-	where assignToken str 	 = 	if isJust (lookup str reservedWords) 
-					then fromJust (lookup str reservedWords)
-					else Id str
+					in ((rest, end), Just [(Id identifier, U.Span start end )])
+	| otherwise		 =	((input, start), Nothing)					
+					

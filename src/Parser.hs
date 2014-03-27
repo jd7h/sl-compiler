@@ -6,48 +6,64 @@ import qualified AST
 
 import ParseLib
 
-import Debug.Trace
-
 type SourceTree a = a U.Span
 
--- type ParseInput = (U.Span, [T.Token])
--- data ParseOutput a = Match (a, ParseInput) | NoMatch
--- type ParseFun a = ParseInput -> (ParseOutput a, Maybe Error)
--- data ParseMonad a = PM ( ParseFun a )
+parseLanguage :: [T.Token] -> Either Error (SourceTree AST.Program)
+parseLanguage tokens = applyParser tokens parseProgram
 
--- parseType
--- parseComment
--- parseSep
--- parseKey
--- parseLiteral
--- parseOperator
-
--- TODO: Implement
 parseProgram :: ParseMonad (SourceTree AST.Program)
-parseProgram = undefined
+parseProgram =
+	do
+		decls <- kleenePlus $ parseDeclaration
+		return $ AST.Program decls (U.Span 0 0)
 
--- TODO: Implement
 parseDeclaration :: ParseMonad (SourceTree AST.Declaration)
-parseDeclaration = undefined
+parseDeclaration = parseVarDecl \/ parseFunDecl
 
--- TODO: Implement
 parseVarDecl :: ParseMonad (SourceTree AST.Declaration)
-parseVarDecl = undefined
+parseVarDecl = 
+	do
+		t <- parseType
+		ident <- parseIdentifier
+		equalsTokenEnum (T.Op T.As)
+		e <- parseExpression
+		equalsTokenEnum (T.Sep T.Pcomma)
+		return $ AST.VarDecl t ident e (U.Span 0 0)
 
--- TODO: Implement
 parseFunDecl :: ParseMonad (SourceTree AST.Declaration)
-parseFunDecl = undefined
+parseFunDecl = 
+	do
+		t <- parseRetType
+		ident <- parseIdentifier
+		equalsTokenEnum (T.Sep T.LPar)
+		e <- opt $ parseFunArgs
+		equalsTokenEnum (T.Sep T.RPar)
+		equalsTokenEnum (T.Sep T.LAcc)
+		vars <- kleene $ parseVarDecl
+		stmnts <- kleenePlus $ parseStatement
+		equalsTokenEnum (T.Sep T.RAcc)
+		let fargs = case e of
+			Nothing -> []
+			Just x 	-> x
+		return $ AST.FunDecl t ident fargs vars stmnts (U.Span 0 0)
+	
+parseFunArgs :: ParseMonad [(SourceTree AST.Type, SourceTree AST.Identifier)]
+parseFunArgs = kleeneDelimited parseFunArg (equalsTokenEnum (T.Sep T.Comma))
 
-parseType :: ParseMonad (SourceTree AST.Type)
-parseType = undefined
+parseFunArg = do
+		t <- parseType
+		ident <- parseIdentifier
+		return $ (t, ident)
 
+parseRetType :: ParseMonad (SourceTree AST.Type)
+parseRetType = 	parseVoid \/ parseType
 
 parseStatement :: ParseMonad (SourceTree AST.Statement)
 parseStatement =
 	do 	-- Block
 		equalsTokenEnum (T.Sep T.LAcc)
 		stmnts <- kleene $ parseStatement
-		equalsTokenEnum (T.Sep T.LAcc)
+		equalsTokenEnum (T.Sep T.RAcc)
 		return $ AST.Block stmnts (U.Span 0 0)
 	\/ do 	-- IfElse
 		equalsTokenEnum (T.Key T.If)
@@ -94,77 +110,59 @@ parseStatement =
 
 -- Function calls and variable accessing
 parseExpression :: ParseMonad (SourceTree AST.Expression)
-parseExpression = 
-	do
-		ident <- parseIdentifier
-		parseFunOrField ident	
-	\/
-		parseExp1
-
-parseFunOrField :: SourceTree AST.Identifier -> ParseMonad (SourceTree AST.Expression)
-parseFunOrField ident = 
-	do
-		fields <- (kleene $ parseField)
-		return $ AST.Var ident fields (U.Span 0 0)
-	\/ do
-		equalsTokenEnum (T.Sep T.LPar)
-		e <- opt $ parseActArgs
-		equalsTokenEnum (T.Sep T.RPar)
-		let args = case e of
-			Nothing -> []
-			Just x -> x
-		return $ AST.FunCall ident args (U.Span 0 0)
-
-parseActArgs :: ParseMonad [SourceTree AST.Expression]
-parseActArgs = kleeneDelimited parseExpression (equalsTokenEnum (T.Sep T.Comma))
+parseExpression = parseExp1
 
 -- Boolean operators
 parseExp1 :: ParseMonad (SourceTree AST.Expression)
 parseExp1 =
 	do
-		e2 <- parseExp2
-		op <- parseBoolOp
-		e1 <- parseExp1
-		return $ AST.BinOp e2 op e1 (U.Span 0 0)
-	\/ do
 		op <- parseNotOp
 		e1 <- parseExp1
 		return $ AST.UnOp op e1 (U.Span 0 0)
-	\/
-		parseExp2
+	\/ do
+		e2 <- parseExp2
+		do
+				op <- parseBoolOp
+				e1 <- parseExp1
+				return $ AST.BinOp e2 op e1 (U.Span 0 0)
+			\/	
+				return e2
 
 -- Relation operators
 parseExp2 :: ParseMonad (SourceTree AST.Expression)
 parseExp2 =
 	do
 		e3 <- parseExp3
-		op <- parseRelOp
-		e2 <- parseExp2
-		return $ AST.BinOp e3 op e2 (U.Span 0 0)
-	\/
-		parseExp3
+		do
+				op <- parseRelOp
+				e2 <- parseExp2
+				return $ AST.BinOp e3 op e2 (U.Span 0 0)
+			\/
+				return e3
 
 -- List operators
 parseExp3 :: ParseMonad (SourceTree AST.Expression)
 parseExp3 =
 	do
 		e4 <- parseExp4
-		op <- parseConsOp
-		e3 <- parseExp3
-		return $ AST.BinOp e4 op e3 (U.Span 0 0)
-	\/
-		parseExp4
+		do
+				op <- parseConsOp
+				e3 <- parseExp3
+				return $ AST.BinOp e4 op e3 (U.Span 0 0)
+			\/
+				return e4
 
 -- Summation operators
 parseExp4 :: ParseMonad (SourceTree AST.Expression)
 parseExp4 =
 	do
 		e5 <- parseExp5
-		op <- parseSumOp
-		e4 <- parseExp4
-		return $ AST.BinOp e5 op e4 (U.Span 0 0)
-	\/
-	 	parseExp5 
+		do
+				op <- parseSumOp
+				e4 <- parseExp4
+				return $ AST.BinOp e5 op e4 (U.Span 0 0)
+			\/
+			 	return e5
 		
 
 -- Multiplication operators
@@ -172,11 +170,12 @@ parseExp5 :: ParseMonad (SourceTree AST.Expression)
 parseExp5 =
 	do
 		e6 <- parseExp6 
-		op <- parseMultOp
-		e5 <- parseExp5
-		return $ AST.BinOp e6 op e5 (U.Span 0 0)
-	\/
-		parseExp6
+		do
+				op <- parseMultOp
+				e5 <- parseExp5
+				return $ AST.BinOp e6 op e5 (U.Span 0 0)
+			\/
+				return e6
 
 -- Minus operator
 parseExp6 :: ParseMonad (SourceTree AST.Expression)
@@ -191,17 +190,17 @@ parseExp6 =
 
 parseExp7 :: ParseMonad (SourceTree AST.Expression)		
 parseExp7 = 
-	do	
+	do	-- Boolean value
 		b <- parseBoolean
 		return $ AST.ConstBool b (U.Span 0 0)
-	\/ do
+	\/ do 	-- Integer value
 		i <- parseInteger
 		return $ AST.ConstInt i (U.Span 0 0)
-	\/ do
+	\/ do 	-- Nil value
 		equalsTokenEnum (T.Sep T.LBr)
 		equalsTokenEnum (T.Sep T.RBr)
 		return $ AST.Nil (U.Span 0 0)
-	\/ do
+	\/ do 	-- Parentheses or tuple value
 		equalsTokenEnum (T.Sep T.LPar)
 		e <- parseExpression
 		do
@@ -212,6 +211,28 @@ parseExp7 =
 			\/ do
 				equalsTokenEnum (T.Sep T.RPar)
 				return e
+	\/ do 	-- Function call or identifier
+		ident <- parseIdentifier
+		parseFunOrField ident	
+		
+
+parseFunOrField :: SourceTree AST.Identifier -> ParseMonad (SourceTree AST.Expression)
+parseFunOrField ident = 
+	do
+		equalsTokenEnum (T.Sep T.LPar)
+		e <- opt $ parseActArgs
+		equalsTokenEnum (T.Sep T.RPar)
+		let args = case e of
+			Nothing -> []
+			Just x -> x
+		return $ AST.FunCall ident args (U.Span 0 0)
+	\/ do
+		fields <- (kleene $ parseField)
+		return $ AST.Var ident fields (U.Span 0 0)
+
+parseActArgs :: ParseMonad [SourceTree AST.Expression]
+parseActArgs = kleeneDelimited parseExpression (equalsTokenEnum (T.Sep T.Comma))
+		
 
 -- *** Operator token parsing *** --
 parseBoolOp :: ParseMonad (SourceTree AST.Op2)
@@ -260,20 +281,53 @@ parseNegOp = parseOp $ \ operator -> case operator of
 
 parseField :: ParseMonad (SourceTree AST.Field)
 parseField = parseToken $ \ token -> case token of
-		(T.Field T.Head, spn)	-> 	Just (AST.Head spn)
-		(T.Field T.Tail, spn)	-> 	Just (AST.Tail spn)
-		(T.Field T.First, spn)	-> 	Just (AST.First spn)
-		(T.Field T.Second, spn)	-> 	Just (AST.Second spn)		
-		_			-> 	Nothing
+		(T.Field T.Head, spn)	-> Just (AST.Head spn)
+		(T.Field T.Tail, spn)	-> Just (AST.Tail spn)
+		(T.Field T.First, spn)	-> Just (AST.First spn)
+		(T.Field T.Second, spn)	-> Just (AST.Second spn)		
+		_			-> Nothing
+
+
+-- *** Type Parsing *** --
+parseVoid :: ParseMonad (SourceTree AST.Type)
+parseVoid = parseToken $ \ token -> case token of
+		(T.Type T.Void, spn)	-> Just (AST.Void spn)	
+		_			-> Nothing
+
+parseBasicType :: ParseMonad (SourceTree AST.Type)
+parseBasicType = parseToken $ \ token -> case token of
+		(T.Type T.Int, spn)	-> Just (AST.Int spn)
+		(T.Type T.Bool, spn)	-> Just (AST.Bool spn)
+		_			-> Nothing
+		
+parseType :: ParseMonad (SourceTree AST.Type)
+parseType = 	
+		parseBasicType
+	\/ do 	-- Tuple
+		equalsTokenEnum (T.Sep T.LPar)
+		t1 <- parseType
+		equalsTokenEnum (T.Sep T.Comma)
+		t2 <- parseType
+		equalsTokenEnum (T.Sep T.RPar)
+		return $ AST.Tuple t1 t2 (U.Span 0 0)
+	\/ do 	-- List
+		equalsTokenEnum (T.Sep T.LBr)
+		t <- parseType
+		equalsTokenEnum (T.Sep T.RBr)	
+		return $ AST.List t (U.Span 0 0)
+	\/ do 	-- Type Identifier
+		ident <- parseIdentifier
+		return $ AST.TypeId ident (U.Span 0 0)
+
 
 -- *** Constants and identifier parsing *** --
 parseBoolean :: ParseMonad (SourceTree AST.Boolean)
-parseBoolean 	= parseToken $ \ token -> case token of
+parseBoolean = parseToken $ \ token -> case token of
 		(T.Boolean n, spn)	-> Just (AST.Boolean n spn)
 		_			-> Nothing
 		
 parseInteger :: ParseMonad (SourceTree AST.Integer)
-parseInteger 	= parseToken $ \ token -> case token of
+parseInteger = parseToken $ \ token -> case token of
 		(T.Number n, spn)	-> Just (AST.Integer n spn)
 		_			-> Nothing
 

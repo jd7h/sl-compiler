@@ -8,16 +8,16 @@ VarDecl	= Type id '=' Exp ';'
 FunDecl	= RetType id '(' [ FArgs ] ')' '{' VarDecl* Stmt+ '}'
 RetType	= 'Void' | Type
 Type	= 'Int' | 'Bool' | '(' Type ',' Type ')' | '[' Type ']' | id
-FArgs	= Type id [ ',' FArgs ] -- removed left recursion
+FArgs	= Type id [ ',' FArgs ]
 
 Stmt	= '{' Stmt* '}'
 		| 'if' '(' Exp ')' Stmt ['else' Stmt]
 		| 'while' '(' Exp ')' Stmt
 		| id Field '=' Exp ';'
-		| Exp ';'
 		| 'return' [ Exp ] ';'
+		| Exp ';'
 		
-Exp		= Exp1 | id FieldOrFun
+Exp		= Exp1
 
 -- Boolean operators
 Exp1	= Exp2 | Exp2 Bexp | '!' Exp1
@@ -42,12 +42,10 @@ Fexp	= '*' Exp5 | '/' Exp5 | '%' Exp5
 -- Negation operator
 Exp6	= Exp7 | '-' Exp6
 
--- Type operators
-Exp7	= '(' Exp TupPar | Pconst
+-- Type operators, function calls and variable accessing
+Exp7	= '(' Exp TupPar | Pconst | id FieldOrFun
 TupPar	= ',' Exp ')' | ')'
 Pconst	= int | 'True' | 'False' | []
-
--- Function calls and variable accessing
 FieldOrFun =  Field | '(' [ActArgs] ')'		-- Function call
 Field	= ( '.hd' | '.tl' | '.fst' | '.snd' )*
 ActArgs	= Exp (',' Exp)*
