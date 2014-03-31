@@ -10,7 +10,7 @@ data Options = Options
 defaultOptions :: Options
 defaultOptions = Options
 	{ verbose	= False
-	, snail	= False
+	, snail		= False
 	}
 
 options :: [OptDescr (Options -> Options)]

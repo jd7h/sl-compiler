@@ -56,3 +56,6 @@ data Integer a 		= Integer Int a
 			
 data Boolean a 		= Boolean Bool a
 			deriving (Show, Eq, Read)
+		
+getIdentifierName :: Identifier a -> String
+getIdentifierName (Identifier name _ _)	= name
