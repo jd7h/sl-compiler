@@ -1,14 +1,8 @@
-{-# LANGUAGE TypeSynonymInstances #-}
--- Flexible typeclasses for more readable code
-
-module Printer_draft where
+module PrettyPrinter where
 
 import AST
-import Utility
--- Pretty Printer --
 
--- Takes a program tree and outputs it with indentation and syntax highlighting
-	
+-- *** Required types and helper functions *** -- 
 data Language =
 	  Type
 	| Variable
@@ -22,10 +16,16 @@ type Markup a = Either Char (OpenClose a)
 type MarkupString a = [Markup a]
 
 data OutputMeta = OutputMeta  {
-	 indentation :: Int
-	,parentheses :: Bool
+	  indentation :: Int
+	, parentheses :: Bool
 }
-	
+
+defaultMeta :: OutputMeta
+defaultMeta = OutputMeta {
+	  indentation = 0
+	, parentheses = True
+}
+
 indent :: OutputMeta -> OutputMeta
 indent om = om {indentation = 1 + indentation om}	
 
@@ -68,14 +68,34 @@ body om statement = case statement of
 	(Block xs _)	-> output om statement
 	otherwise	-> output (indent om) statement
 	
--- *** Output class definition and instantiation *** --
+-- *** Class Definition *** --
 class Output b where
 	output :: OutputMeta -> b a -> MarkupString Language
 	
 outputList :: Output b => OutputMeta -> [b a] -> MarkupString Language
 outputList _ []		= fromString ""
 outputList om (x:xs)	= output om x ++ outputList om xs
+
+outputArg :: Output b => OutputMeta -> (b a, Identifier c) -> [Markup Language]
+outputArg om (t, ident) = output om t ++ fromString " " ++ markup (Variable, getIdentifierName ident)
+
+-- *** Class Instantiation *** --
+
+instance Output Program where
+	output om (Program decls _) = outputList om decls
+
+instance Output Declaration where
+	output om (VarDecl t ident e _)				= tabs om ++ output om t ++ fromString " " ++ markup (Variable, getIdentifierName ident) ++ fromString " = " ++ output (withoutParentheses om) e ++ fromString ";" ++ newline
+	output om (FunDecl t ident args varDecls stmts _)	= tabs om ++ output om t ++ fromString " " ++ markup (Function, getIdentifierName ident) ++ enclose (withParentheses om) (delimitedMap (outputArg om) (fromString ", ") args) ++ fromString "{" ++ newline ++ outputList (indent om) varDecls ++ newline ++ outputList (indent om) stmts ++ tabs om ++ fromString "}" ++ newline ++ newline
 	
+instance Output Type where
+	output om (Void _)		= markup (Type, "Void")
+	output om (Int _)		= markup (Type, "Int")
+	output om (Bool _)		= markup (Type, "Bool")
+	output om (TypeId ident _)	= fromString $ getIdentifierName ident
+	output om (List t _)		= fromString "[" ++ output om t ++ fromString "]"
+	output om (Tuple t1 t2 _)	= fromString "("++ output om t1 ++ fromString ", " ++ output om t2 ++ fromString")"
+
 instance Output Statement where
 	output om (Expression e _)		= tabs om ++ output (withoutParentheses om) e ++ fromString ";" ++ newline
 	output om (Block [] _)			= tabs om ++ fromString "{}" ++ newline
@@ -97,7 +117,7 @@ instance Output Expression where
 	output om (Pair e1 e2 _)		= enclose (withParentheses om) (output (withoutParentheses om) e1 ++ fromString ", " ++ output (withoutParentheses om) e2 )
 	output om (Nil _)			= fromString "[]"
 
-instance Output Field where
+instance Output Field where		
 	output om (Head _)	= markup (Field, ".hd")
 	output om (Tail _)	= markup (Field, ".tl")
 	output om (First _)	= markup (Field, ".fst")
