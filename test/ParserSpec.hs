@@ -20,7 +20,7 @@ main = hspec spec
 fromRight (Right x) = x
 fromRight (Left e) = error e
 
-
+doParseDeclaration source = fromRight $ applyParser (fromJust (T.lexStr (source, 0))) parseDeclaration
 doParseExpression source = fromRight $ applyParser (fromJust (T.lexStr (source, 0))) parseExpression 
 doParseStatement source = fromRight $ applyParser (fromJust (T.lexStr (source, 0))) parseStatement
 doParseProgram source = fromRight $ applyParser (fromJust (T.lexStr (source, 0))) parseProgram
@@ -80,8 +80,124 @@ spec = do
 			      ]
 			      (Span 0 0)
 
+	describe "declaration parser" $ do
+		it "parses function delcarations" $
+			doParseDeclaration "Int facI ( Int n) { Int r = 1; while (n > 1) { r = r * n; n = n - 1; } return r ;}" `shouldBe`
+				FunDecl 
+				(Int (Span 0 3)) 
+				(Identifier "facI" Nothing (Span 4 8)) 
+				[
+					(Int (Span 11 14), Identifier "n" Nothing (Span 15 16))
+				] 
+				[
+					VarDecl (Int (Span 20 23)) 
+					(Identifier "r" Nothing (Span 24 25)) 
+					(ConstInt (Integer 1 (Span 28 29)) (Span 0 0)) 
+					(Span 0 0)
+				] 
+				[
+					While 
+					(BinOp 
+						(Var (Identifier "n" Nothing (Span 38 39)) [] (Span 0 0)) 
+						(Gt (Span 40 41)) 
+						(ConstInt (Integer 1 (Span 42 43)) (Span 0 0)) (Span 0 0)
+					) 
+					(Block 
+						[
+							Assignment 
+							(Identifier "r" Nothing (Span 47 48)) 
+							[] 
+							(BinOp 
+								(Var (Identifier "r" Nothing (Span 51 52)) [] (Span 0 0)) 
+								(Mult (Span 53 54)) 
+								(Var (Identifier "n" Nothing (Span 55 56)) [] (Span 0 0)) 
+								(Span 0 0)
+							) 
+							(Span 0 0)
+							,
+							Assignment 
+							(Identifier "n" Nothing (Span 58 59)) 
+							[] 
+							(BinOp 
+								(Var (Identifier "n" Nothing (Span 62 63)) [] (Span 0 0)) 
+								(Min (Span 64 65)) 
+								(ConstInt (Integer 1 (Span 66 67)) (Span 0 0)) 
+								(Span 0 0)
+							) 
+							(Span 0 0)
+						] 
+						(Span 0 0)
+					) 
+					(Span 0 0)
+					,
+					Return 
+						(Just (Var (Identifier "r" Nothing (Span 78 79)) [] (Span 0 0))) 
+						(Span 0 0)
+				] 
+				(Span 0 0)
+		
+		it "parses variable declarations" $
+			doParseDeclaration "Int r = 1 ;" `shouldBe`
+				VarDecl 
+				(Int (Span 0 3)) 
+				(Identifier "r" Nothing (Span 4 5)) 
+				(ConstInt (Integer 1 (Span 8 9)) (Span 0 0)) 
+				(Span 0 0)
+
 	-- *** STATEMENTS *** --	
-	describe "statement parser" $ do		
+	describe "statement parser" $ do
+		it "parses while statements" $
+			doParseStatement "while (True) {False;}" `shouldBe`
+				While 
+				(ConstBool (Boolean True (Span 7 11)) (Span 0 0)) 
+				(
+					Block 
+					[
+					 Expression 
+					 (ConstBool (Boolean False (Span 14 19)) (Span 0 0)) 
+					 (Span 0 0)
+					]
+					(Span 0 0)
+				) 
+				(Span 0 0)
+		
+		it "parses while statements holding expressions" $
+			doParseStatement "while (n > 1) { r = r * n; n = n - 1; }" `shouldBe`
+				While 
+				(BinOp 
+					(Var (Identifier "n" Nothing (Span 7 8)) [] (Span 0 0)) 
+					(Gt (Span 9 10)) 
+					(ConstInt (Integer 1 (Span 11 12)) (Span 0 0)) 
+					(Span 0 0)
+				) 
+				(Block 
+					[
+						Assignment
+							(Identifier "r" Nothing (Span 16 17)) 
+							[] 
+							(BinOp 
+								(Var (Identifier "r" Nothing (Span 20 21)) [] (Span 0 0)) 
+								(Mult (Span 22 23)) 
+								(Var (Identifier "n" Nothing (Span 24 25)) [] (Span 0 0)) 
+								(Span 0 0)
+							) 
+							(Span 0 0)
+						,
+						Assignment 
+							(Identifier "n" Nothing (Span 27 28)) 
+							[] 
+							(BinOp 
+								(Var (Identifier "n" Nothing (Span 31 32)) [] (Span 0 0)) 
+								(Min (Span 33 34)) 
+								(ConstInt (Integer 1 (Span 35 36)) (Span 0 0)) 
+								(Span 0 0)
+							) 
+							(Span 0 0)
+					] 
+					(Span 0 0)
+				) 
+				(Span 0 0)
+				
 		it "parses empty return statements" $
 			doParseStatement "return;" `shouldBe`
 				Return Nothing (Span 0 0)

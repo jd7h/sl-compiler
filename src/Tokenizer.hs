@@ -6,8 +6,6 @@ import Data.List as List
 import Data.Maybe as Maybe
 import qualified Data.Char as C
 
-import Debug.Trace
-
 type Reader = (String,Int)
 type Token = (TokenEnum, U.Span)
 type LexResult = Maybe [Token]

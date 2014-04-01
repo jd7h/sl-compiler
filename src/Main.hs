@@ -3,13 +3,14 @@ import System.Exit
 
 import Control.Monad
 
+
 import qualified Options
+import qualified Printer 
+import qualified Utility as U
+import qualified AST
+
 import qualified Tokenizer
 import qualified Parser
-import qualified AST
-import qualified Utility as U
-
--- type CompFun = Options -> String -> String -> [Token] -> IO (...)
 
 main = do
 	
@@ -25,9 +26,16 @@ main = do
 
 	-- Lex source
 	(tokenResult, tokenErrors) <- tokenize options file source (Just [])
+	when (Options.verbose options) $ putStrLn ("* Tokenized source *")
+	when (not . null $ tokenErrors) $ putStrLn tokenErrors
 	
 	-- Parse tokens
-	-- (parseResult, parseErrors) <- parse options
+	(parseResult, parseErrors) <- parse options file source tokenResult
+	when (Options.verbose options) $ putStrLn ("* Constructed parse tree *")
+	when (not . null $ parseErrors) $ putStrLn parseErrors
+
+	-- putStrLn $ show parseResult
+	Printer.printTree parseResult
 
 	exitSuccess
 
@@ -47,9 +55,8 @@ filterComment tokens = filter (not . isComment) tokens
 		_			-> False
 		
 parse _ _ _ [] = return (AST.Program [] (U.Span 0 0), "Parse error: nothing to parse")
-parse options file source tokens =
-	do
-		let parseResult = Parser.parseLanguage tokens
-		return $ case parseResult of
-			Left e -> (AST.Program [] (U.Span 0 0), e)
-			Right tree -> (tree, [])
+parse options file source tokens = do
+	let parseResult = Parser.parseLanguage tokens
+	return $ case parseResult of
+		Left e -> (AST.Program [] (U.Span 0 0), e)
+		Right tree -> (tree, [])

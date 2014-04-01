@@ -1,4 +1,4 @@
-module PrettyPrinter where
+module Output where
 
 import AST
 
@@ -11,8 +11,8 @@ data Language =
 	| Keyword
 	| Function
 
-data OpenClose a = Open a | Close a
-type Markup a = Either Char (OpenClose a)
+data StyleSpan a = Open a | Close a
+type Markup a = Either Char (StyleSpan a)
 type MarkupString a = [Markup a]
 
 data OutputMeta = OutputMeta  {
@@ -23,7 +23,7 @@ data OutputMeta = OutputMeta  {
 defaultMeta :: OutputMeta
 defaultMeta = OutputMeta {
 	  indentation = 0
-	, parentheses = True
+	, parentheses = False
 }
 
 indent :: OutputMeta -> OutputMeta
@@ -86,13 +86,13 @@ instance Output Program where
 
 instance Output Declaration where
 	output om (VarDecl t ident e _)				= tabs om ++ output om t ++ fromString " " ++ markup (Variable, getIdentifierName ident) ++ fromString " = " ++ output (withoutParentheses om) e ++ fromString ";" ++ newline
-	output om (FunDecl t ident args varDecls stmts _)	= tabs om ++ output om t ++ fromString " " ++ markup (Function, getIdentifierName ident) ++ enclose (withParentheses om) (delimitedMap (outputArg om) (fromString ", ") args) ++ fromString "{" ++ newline ++ outputList (indent om) varDecls ++ newline ++ outputList (indent om) stmts ++ tabs om ++ fromString "}" ++ newline ++ newline
+	output om (FunDecl t ident args varDecls stmts _)	= tabs om ++ output om t ++ fromString " " ++ markup (Function, getIdentifierName ident) ++ enclose (withParentheses om) (delimitedMap (outputArg om) (fromString ", ") args) ++ newline ++ fromString "{" ++ newline ++ outputList (indent om) varDecls ++ outputList (indent om) stmts ++ tabs om ++ fromString "}" ++ newline ++ newline
 	
 instance Output Type where
 	output om (Void _)		= markup (Type, "Void")
 	output om (Int _)		= markup (Type, "Int")
 	output om (Bool _)		= markup (Type, "Bool")
-	output om (TypeId ident _)	= fromString $ getIdentifierName ident
+	output om (TypeId ident _)	= markup (Type, getIdentifierName ident)
 	output om (List t _)		= fromString "[" ++ output om t ++ fromString "]"
 	output om (Tuple t1 t2 _)	= fromString "("++ output om t1 ++ fromString ", " ++ output om t2 ++ fromString")"
 
@@ -101,7 +101,7 @@ instance Output Statement where
 	output om (Block [] _)			= tabs om ++ fromString "{}" ++ newline
 	output om (Block stmts _)		= tabs om ++ fromString "{\n" ++ outputList (indent om) stmts ++ tabs om ++ fromString "}" ++ newline
 	output om (Assignment ident fields e _) = tabs om ++ markup (Variable, getIdentifierName ident) ++ outputList om fields ++ fromString " = " ++ output (withoutParentheses om) e ++ fromString ";" ++ newline
-	output om (IfElse e stmt1 stmt2 _) 	= tabs om ++ markup (Keyword, "if") ++ enclose (withParentheses om) (output om e) ++ newline ++ body om stmt1 ++ tabs om ++ markup (Keyword, "else") ++ body (indent om) stmt2
+	output om (IfElse e stmt1 stmt2 _) 	= tabs om ++ markup (Keyword, "if") ++ enclose (withParentheses om) (output om e) ++ newline ++ body om stmt1 ++ tabs om ++ markup (Keyword, "else") ++ newline ++ body om stmt2
 	output om (If e stmt _)			= tabs om ++ markup (Keyword, "if") ++ enclose (withParentheses om) (output om e) ++ newline ++ body om stmt
 	output om (While e stmt _)		= tabs om ++ markup (Keyword, "while") ++ enclose (withParentheses om) (output om e) ++ newline ++ body om stmt
 	output om (Return (Just e) _)		= tabs om ++ markup (Keyword, "return") ++ fromString " " ++ output om e ++ fromString ";" ++ newline

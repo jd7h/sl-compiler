@@ -76,7 +76,6 @@ kleenePlusDelimited mA mB = do
 		
 
 -- *** Parser Functions *** --
-
 applyParser :: [T.Token] -> ParseMonad a -> Either Error a
 applyParser tokens monad = case unpack monad (U.Span 0 0, tokens) of
 	(NoMatch, Nothing)	-> error "PARSE ERROR: No syntax match and no errors!"
