@@ -2,6 +2,7 @@ module AST where
 
 -- Below largely follows overall structure
 -- I've used datatypes rather than standard types to allow for flexibility in adjustments
+
 data Program a		= Program [Declaration a] a
 			deriving (Show, Eq, Read)
 
@@ -30,12 +31,12 @@ data Expression	a 	= Var (Identifier a) [Field a] a
 			| BinOp (Expression a) (Op2 a) (Expression a) a		-- Allows tree simplification
 			| UnOp (Op1 a) (Expression a) a
 			| ConstInt (AST.Integer a) a
-			| ConstBool (Boolean a) a
+			| ConstBool (AST.Boolean a) a
 			| FunCall (Identifier a) [Expression a] a
 			| Pair (Expression a) (Expression a) a
 			| Nil a
 			deriving (Show, Eq, Read)
-					
+
 data Field a		= Head a | Tail a | First a | Second a
 			deriving (Show, Eq, Read)
 					
